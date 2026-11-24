@@ -1,0 +1,25 @@
+{
+  "name": "tr-metin",
+  "version": "0.1.0",
+  "description": "Turkish-aware lowercase/uppercase, sorting, slugs and search. No dependencies, no Intl required.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "files": ["src"],
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": ["turkish", "türkçe", "dotless-i", "locale", "slug", "slugify", "collation", "sort", "lowercase", "uppercase", "search", "i18n"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/salihhalper/tr-metin.git" },
+  "bugs": "https://github.com/salihhalper/tr-metin/issues",
+  "homepage": "https://github.com/salihhalper/tr-metin#readme"
+}
