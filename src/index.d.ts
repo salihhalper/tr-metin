@@ -25,3 +25,14 @@ export declare function compare(a: string, b: string): number;
 /** Sorted copy in Turkish dictionary order. */
 export declare function sort(items: readonly string[]): string[];
 export declare function sort<T>(items: readonly T[], key: (item: T) => string): T[];
+export type SuffixKind =
+  | 'locative' | 'ablative' | 'dative' | 'accusative' | 'genitive' | 'instrumental' | 'plural'
+  | 'de' | 'da' | 'den' | 'dan' | 'e' | 'a' | 'i' | 'ı' | 'u' | 'ü' | 'in' | 'ın' | 'un' | 'ün'
+  | 'le' | 'la' | 'ile' | 'ler' | 'lar'
+  | (string & {});
+export interface SuffixOptions {
+  /** How the word is pronounced, when it differs from the spelling: { say: 'maykıl' } for "Michael". */
+  say?: string;
+}
+/** "Kars" + locative → "Kars'ta", "2026" + "de" → "2026'da", "ABD" + "e" → "ABD'ye". */
+export declare function suffix(word: string, kind: SuffixKind, options?: SuffixOptions): string;

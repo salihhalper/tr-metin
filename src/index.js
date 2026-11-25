@@ -133,3 +133,138 @@ export function sort(items, key) {
   const pick = key ?? ((item) => item);
   return [...items].sort((x, y) => compare(pick(x), pick(y)));
 }
+
+// ---------------------------------------------------------------------------
+// Case suffixes after an apostrophe: "İstanbul'da", "Kars'ta", "2026'da", "ABD'ye".
+
+const BACK_VOWELS = 'aıou';
+const VOWELS = 'aıoueiöü';
+const VOICELESS = 'çfhkpsşt';
+const CIRCUMFLEX = { â: 'a', î: 'i', û: 'u' };
+
+// How each letter is read on its own, for abbreviations such as "ABD" or "TBMM".
+const LETTER_NAMES = {
+  a: 'a', b: 'be', c: 'ce', ç: 'çe', d: 'de', e: 'e', f: 'fe', g: 'ge', ğ: 'ge', h: 'he',
+  ı: 'ı', i: 'i', j: 'je', k: 'ke', l: 'le', m: 'me', n: 'ne', o: 'o', ö: 'ö', p: 'pe',
+  q: 'kü', r: 're', s: 'se', ş: 'şe', t: 'te', u: 'u', ü: 'ü', v: 've', w: 've', x: 'iks',
+  y: 'ye', z: 'ze',
+};
+
+const UNITS = ['sıfır', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+const TENS = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+const GROUPS = ['', 'bin', 'milyon', 'milyar', 'trilyon', 'katrilyon', 'kentilyon'];
+
+// Two consonants a Turkish word may end in: Kars, Türk, kalp, üst.
+const FINAL_PAIR_FIRST = 'lrnsş';
+
+// Suffix shapes. A = a/e, I = ı/i/u/ü, D = d/t, and the buffer letter used after a vowel.
+const SUFFIXES = {
+  locative: { shape: 'DA' },
+  ablative: { shape: 'DAn' },
+  dative: { shape: 'A', buffer: 'y' },
+  accusative: { shape: 'I', buffer: 'y' },
+  genitive: { shape: 'In', buffer: 'n' },
+  instrumental: { shape: 'lA', buffer: 'y' },
+  plural: { shape: 'lAr' },
+};
+const ALIASES = {
+  de: 'locative', da: 'locative', te: 'locative', ta: 'locative',
+  den: 'ablative', dan: 'ablative', ten: 'ablative', tan: 'ablative',
+  e: 'dative', a: 'dative', ye: 'dative', ya: 'dative',
+  i: 'accusative', ı: 'accusative', u: 'accusative', ü: 'accusative',
+  in: 'genitive', ın: 'genitive', un: 'genitive', ün: 'genitive', nin: 'genitive', nın: 'genitive',
+  le: 'instrumental', la: 'instrumental', yle: 'instrumental', yla: 'instrumental', ile: 'instrumental',
+  ler: 'plural', lar: 'plural',
+};
+
+// The last word you would say when reading an integer aloud: 2026 → "altı", 1000 → "bin".
+function lastSpokenWordOfInteger(digits) {
+  const reversed = [...digits].reverse().map(Number);
+  if (reversed[0]) return UNITS[reversed[0]];
+  if (reversed[1]) return TENS[reversed[1]];
+  if (reversed[2]) return 'yüz';
+  for (let group = 1; group * 3 < reversed.length; group += 1) {
+    if (reversed.slice(group * 3, group * 3 + 3).some(Boolean)) {
+      return GROUPS[Math.min(group, GROUPS.length - 1)];
+    }
+  }
+  return UNITS[0];
+}
+
+// "1.000" and "1,000" are thousands; "3,5" and "2.75" are decimals, read as "üç virgül beş".
+function lastSpokenWordOfNumber(number) {
+  const parts = number.split(/[.,]/);
+  if (parts.length > 1) {
+    const tail = parts[parts.length - 1];
+    const thousands = parts.slice(1).every((part) => part.length === 3);
+    if (!thousands) return lastSpokenWordOfInteger(tail);
+  }
+  return lastSpokenWordOfInteger(parts.join(''));
+}
+
+function readAsLetters(word) {
+  const letters = [...word].filter((char) => /\p{L}/u.test(char));
+  if (letters.length < 2 || !letters.some((char) => VOWELS.includes(char))) return true;
+  const isVowel = (char) => VOWELS.includes(char);
+  if (!isVowel(letters[0]) && !isVowel(letters[1])) return true; // TBMM, CHP
+  const [beforeLast, last] = letters.slice(-2);
+  if (!isVowel(beforeLast) && !isVowel(last) && !FINAL_PAIR_FIRST.includes(beforeLast)) return true; // ABD
+  for (let i = 0; i + 2 < letters.length; i += 1) {
+    if (!letters.slice(i, i + 3).some(isVowel)) return true;
+  }
+  return false;
+}
+
+// Reduces the end of a word to the sounds that decide the suffix.
+function spokenEnding(word) {
+  const number = word.match(/\d+(?:[.,]\d+)*$/u);
+  if (number) return lastSpokenWordOfNumber(number[0]);
+
+  const letters = word.match(/[\p{L}\p{M}]+$/u);
+  if (!letters) throw new RangeError(`Cannot add a suffix to "${word}": it does not end in a letter or digit`);
+  const written = letters[0].normalize('NFC');
+  // Keep Turkish letters, reduce others (é, ä, â…) to their base letter.
+  const lower = [...toLowerCase(written)]
+    .map((char) => (LETTER_NAMES[char] ? char : CIRCUMFLEX[char] ?? fold(char)))
+    .join('');
+  const allCaps = written === toUpperCase(written) && written !== lower;
+  if ((allCaps && readAsLetters(lower)) || ![...lower].some((char) => VOWELS.includes(char))) {
+    return [...lower].map((char) => LETTER_NAMES[char] ?? char).join('');
+  }
+  return lower;
+}
+
+function build(shape, buffer, ending) {
+  const vowels = [...ending].filter((char) => VOWELS.includes(char));
+  const lastVowel = vowels[vowels.length - 1] ?? 'e';
+  const back = BACK_VOWELS.includes(lastVowel);
+  const rounded = 'ouöü'.includes(lastVowel);
+  const lastSound = ending[ending.length - 1];
+  const endsInVowel = VOWELS.includes(lastSound);
+
+  let out = endsInVowel && buffer ? buffer : '';
+  for (const part of shape) {
+    if (part === 'A') out += back ? 'a' : 'e';
+    else if (part === 'I') out += back ? (rounded ? 'u' : 'ı') : (rounded ? 'ü' : 'i');
+    else if (part === 'D') out += VOICELESS.includes(lastSound) ? 't' : 'd';
+    else out += part;
+  }
+  return out;
+}
+
+/**
+ * Adds a case suffix after an apostrophe, choosing the form by Turkish vowel harmony and
+ * consonant rules: suffix("Kars", "locative") → "Kars'ta", suffix("2026", "de") → "2026'da",
+ * suffix("ABD", "e") → "ABD'ye". Numbers and abbreviations are read the way they are spoken.
+ * Pass `say` when a name is not pronounced as written: suffix("Michael", "e", { say: "maykıl" }).
+ */
+export function suffix(word, kind, options = {}) {
+  const value = text(word).trim();
+  const name = SUFFIXES[kind] ? kind : ALIASES[toLowerCase(text(kind))];
+  if (!name) {
+    throw new RangeError(`Unknown suffix "${kind}". Use one of: ${Object.keys(SUFFIXES).join(', ')}`);
+  }
+  const ending = spokenEnding(options.say === undefined ? value : text(options.say).trim());
+  const { shape, buffer } = SUFFIXES[name];
+  return `${value}'${build(shape, buffer, ending)}`;
+}

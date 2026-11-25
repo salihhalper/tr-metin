@@ -1,7 +1,7 @@
 {
   "name": "tr-metin",
   "version": "0.1.0",
-  "description": "Turkish-aware lowercase/uppercase, sorting, slugs and search. No dependencies, no Intl required.",
+  "description": "Turkish-aware lowercase/uppercase, sorting, slugs, search and case suffixes (Kars'ta, 2026'da, ABD'ye). No dependencies, no Intl required.",
   "type": "module",
   "exports": {
     ".": {
@@ -17,7 +17,7 @@
   "scripts": {
     "test": "node --test"
   },
-  "keywords": ["turkish", "türkçe", "dotless-i", "locale", "slug", "slugify", "collation", "sort", "lowercase", "uppercase", "search", "i18n"],
+  "keywords": ["turkish", "türkçe", "dotless-i", "locale", "slug", "slugify", "collation", "sort", "lowercase", "uppercase", "search", "i18n", "suffix", "vowel-harmony", "ek"],
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/salihhalper/tr-metin.git" },
   "bugs": "https://github.com/salihhalper/tr-metin/issues",

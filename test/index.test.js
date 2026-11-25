@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ALPHABET, capitalize, compare, equalsIgnoreCase, fold, includes, slugify, sort, titleCase,
+  ALPHABET, capitalize, compare, equalsIgnoreCase, fold, includes, slugify, sort, suffix, titleCase,
   toLowerCase, toUpperCase,
 } from '../src/index.js';
 
@@ -100,4 +100,96 @@ test('compare agrees with ICU Turkish collation on a word list', () => {
 test('rejects non-strings clearly', () => {
   assert.throws(() => slugify(null), /Expected a string, got null/);
   assert.throws(() => toLowerCase(5), /Expected a string, got number/);
+});
+
+test('suffix follows vowel harmony and consonant rules', () => {
+  assert.equal(suffix('İstanbul', 'locative'), "İstanbul'da");
+  assert.equal(suffix('Kars', 'locative'), "Kars'ta");
+  assert.equal(suffix('Kars', 'ablative'), "Kars'tan");
+  assert.equal(suffix('İzmir', 'ablative'), "İzmir'den");
+  assert.equal(suffix('Ankara', 'dative'), "Ankara'ya");
+  assert.equal(suffix('Ankara', 'accusative'), "Ankara'yı");
+  assert.equal(suffix('Ankara', 'genitive'), "Ankara'nın");
+  assert.equal(suffix('Ankara', 'instrumental'), "Ankara'yla");
+  assert.equal(suffix('Ahmet', 'instrumental'), "Ahmet'le");
+  assert.equal(suffix('Ayşe', 'genitive'), "Ayşe'nin");
+  assert.equal(suffix('Bolu', 'accusative'), "Bolu'yu");
+  assert.equal(suffix('Ordu', 'genitive'), "Ordu'nun");
+  assert.equal(suffix('Ürgüp', 'accusative'), "Ürgüp'ü");
+  assert.equal(suffix('Türk', 'dative'), "Türk'e");
+  assert.equal(suffix('Kâzım', 'dative'), "Kâzım'a");
+  assert.equal(suffix('Ahmet', 'plural'), "Ahmet'ler");
+});
+
+test('suffix accepts Turkish names for the suffix', () => {
+  assert.equal(suffix('Kars', 'de'), "Kars'ta");
+  assert.equal(suffix('Kars', 'DA'), "Kars'ta");
+  assert.equal(suffix('Ankara', 'e'), "Ankara'ya");
+  assert.equal(suffix('Ankara', 'ile'), "Ankara'yla");
+  assert.throws(() => suffix('Ankara', 'ki'), /Unknown suffix "ki"/);
+});
+
+test('suffix reads numbers aloud', () => {
+  assert.equal(suffix('2026', 'de'), "2026'da");
+  assert.equal(suffix('1990', 'ler'), "1990'lar");
+  assert.equal(suffix('2000', 'ler'), "2000'ler");
+  assert.equal(suffix('3', 'de'), "3'te");
+  assert.equal(suffix('5', 'e'), "5'e");
+  assert.equal(suffix('6', 'e'), "6'ya");
+  assert.equal(suffix('10', 'i'), "10'u");
+  assert.equal(suffix('40', 'de'), "40'ta");
+  assert.equal(suffix('100', 'e'), "100'e");
+  assert.equal(suffix('1.000.000', 'e'), "1.000.000'a");
+  assert.equal(suffix('3,5', 'e'), "3,5'e");
+  assert.equal(suffix('0,06', 'e'), "0,06'ya");
+  assert.equal(suffix('%50', 'e'), "%50'ye");
+  assert.equal(suffix('Windows 11', 'e'), "Windows 11'e");
+  assert.equal(suffix('COVID-19', 'e'), "COVID-19'a");
+});
+
+test('suffix reads the last spoken word of every number correctly', () => {
+  const units = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+  const tens = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+  const below1000 = (n) => [n >= 100 ? `${n >= 200 ? units[Math.floor(n / 100)] : ''}yüz` : '', tens[Math.floor(n / 10) % 10], units[n % 10]].join('');
+  const spell = (n) => {
+    if (n === 0) return 'sıfır';
+    const parts = [];
+    for (const [size, name] of [[1e9, 'milyar'], [1e6, 'milyon'], [1e3, 'bin']]) {
+      const count = Math.floor(n / size) % 1000;
+      if (count) parts.push(count === 1 && name === 'bin' ? 'bin' : below1000(count) + name);
+    }
+    parts.push(below1000(n % 1000));
+    return parts.join('');
+  };
+  const vowelSuffix = (word) => {
+    const last = [...word].filter((c) => 'aıoueiöü'.includes(c)).pop();
+    return ('aıou'.includes(last) ? 'a' : 'e');
+  };
+  for (const n of [...Array(2100).keys(), 10000, 20000, 100000, 1000000, 3000000, 1000000000, 2147483647]) {
+    const word = spell(n);
+    const ending = 'aıoueiöü'.includes(word.at(-1)) ? 'y' : '';
+    assert.equal(suffix(String(n), 'e'), `${n}'${ending}${vowelSuffix(word)}`, `${n} (${word})`);
+  }
+});
+
+test('suffix reads abbreviations letter by letter unless they read as a word', () => {
+  assert.equal(suffix('ABD', 'e'), "ABD'ye");
+  assert.equal(suffix('ABD', 'de'), "ABD'de");
+  assert.equal(suffix('TBMM', 'in'), "TBMM'nin");
+  assert.equal(suffix('CHP', 'e'), "CHP'ye");
+  assert.equal(suffix('THY', 'de'), "THY'de");
+  assert.equal(suffix('ÖSYM', 'e'), "ÖSYM'ye");
+  assert.equal(suffix('İETT', 'e'), "İETT'ye");
+  assert.equal(suffix('NATO', 'e'), "NATO'ya");
+  assert.equal(suffix('TÜBİTAK', 'e'), "TÜBİTAK'a");
+  assert.equal(suffix('YÖK', 'e'), "YÖK'e");
+  assert.equal(suffix('MEB', 'e'), "MEB'e");
+  assert.equal(suffix('KARS', 'de'), "KARS'ta");
+});
+
+test('suffix uses `say` for names not pronounced as written', () => {
+  assert.equal(suffix('Michael', 'e', { say: 'maykıl' }), "Michael'a");
+  assert.equal(suffix('iPhone', 'de', { say: 'ayfon' }), "iPhone'da");
+  assert.equal(suffix('Kemal', 'e', { say: 'kemel' }), "Kemal'e");
+  assert.throws(() => suffix('', 'e'), /does not end in a letter or digit/);
 });
